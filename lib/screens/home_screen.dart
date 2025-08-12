@@ -18,30 +18,21 @@ class HomeScreen extends StatelessWidget {
         backgroundColor: Theme.of(context).colorScheme.primary,
         foregroundColor: Colors.white,
         elevation: 0,
-        actions: [
-          Consumer<ACProvider>(
-            builder: (context, acProvider, child) {
-              return IconButton(
-                icon: Icon(
-                  acProvider.isConnected ? Icons.bluetooth_connected : Icons.bluetooth_disabled,
-                  color: acProvider.isConnected ? Colors.green : Colors.red,
-                ),
-                onPressed: () {
-                  // Bluetooth bağlantı durumu
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                                             content: Text(
-                         acProvider.isConnected 
-                           ? 'Bluetooth Connected' 
-                           : 'Bluetooth Disconnected'
-                       ),
-                    ),
-                  );
-                },
-              );
-            },
-          ),
-        ],
+                 actions: [
+           Consumer<ACProvider>(
+             builder: (context, acProvider, child) {
+               return IconButton(
+                 icon: Icon(
+                   acProvider.isConnected ? Icons.bluetooth_connected : Icons.bluetooth_disabled,
+                   color: acProvider.isConnected ? Colors.green : Colors.red,
+                 ),
+                 onPressed: () {
+                   _showBluetoothDialog(context, acProvider);
+                 },
+               );
+             },
+           ),
+         ],
       ),
       body: Consumer<ACProvider>(
         builder: (context, acProvider, child) {
@@ -139,6 +130,104 @@ class HomeScreen extends StatelessWidget {
           );
         },
       ),
+    );
+  }
+
+  void _showBluetoothDialog(BuildContext context, ACProvider acProvider) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Bluetooth Connection'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (acProvider.isConnected) ...[
+                  const Text('Connected to AC device'),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () {
+                      acProvider.disconnect();
+                      Navigator.of(context).pop();
+                    },
+                    child: const Text('Disconnect'),
+                  ),
+                ] else ...[
+                  const Text('No AC device connected'),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () async {
+                      await acProvider.scanForDevices();
+                      Navigator.of(context).pop();
+                      _showDeviceListDialog(context, acProvider);
+                    },
+                    child: const Text('Scan for Devices'),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: const Text('Close'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showDeviceListDialog(BuildContext context, ACProvider acProvider) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Available Devices'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (acProvider.availableDevices.isEmpty)
+                  const Text('No devices found. Make sure your AC is in pairing mode.'),
+                ...acProvider.availableDevices.map((device) {
+                  return ListTile(
+                    leading: const Icon(Icons.ac_unit),
+                    title: Text(device.platformName.isNotEmpty ? device.platformName : 'Unknown Device'),
+                    subtitle: Text(device.remoteId.toString()),
+                    onTap: () async {
+                      Navigator.of(context).pop();
+                      final success = await acProvider.connectToDevice(device);
+                      if (success) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Successfully connected to AC!')),
+                        );
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Failed to connect to AC')),
+                        );
+                      }
+                    },
+                  );
+                }).toList(),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: const Text('Close'),
+            ),
+          ],
+        );
+      },
     );
   }
 }
